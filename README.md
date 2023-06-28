@@ -5,6 +5,14 @@ This Groovy script helps to quantify fluorescence intensity statistics in Nuclei
 1. Go to the ``GitHub`` repository
 2. Click on ``<Code>``>``Download ZIP``
 3. The repo will be found at ``Downloads`` directory.
+
+## Please note that you must have installed the IJPB-Plugins library in ImageJ UpdateSite:
+1. Click on ``Help``>``Update``
+<p align="center">
+    <img width="600" height="350" src="https://github.com/cnio-cmu-BioimageAnalysis/fluorescenceQuantification_code/assets/83207172/81cbd730-b481-4f9c-bfa8-5c4a7792c3f4">
+    </p>
+
+
 ## Running fluorescenceQuantification_code in headless mode through ImageJ/Windows Windows Terminal (ALL parameters)
 
 ``ImageJ-win64.exe --ij2 --headless --run "/absolute_path/to/groovyscript/fluorescenceQuantification.groovy" "headless=true, inputFilesDir='/absolute_path/to/inputFiles/images',outputDir='/absolute_path/to/outputDirectory/results',applyDAPI=false,"``
