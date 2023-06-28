@@ -11,10 +11,8 @@ import java.io.File;
 
 // INPUT UI
 //
-#
-@File(label = "Input File Directory", style = "directory") inputFilesDir
-#
-@File(label = "Output directory", style = "directory") outputDir
+#@File(label = "Input File Directory", style = "directory") inputFilesDir
+#@File(label = "Output directory", style = "directory") outputDir
 //#@Boolean(label = "Apply DAPI?") applyDAPI
 
 
