@@ -1,5 +1,6 @@
 import ij.IJ
 import ij.ImagePlus
+import ij.gui.PolygonRoi
 import ij.gui.ShapeRoi
 import ij.measure.ResultsTable
 import ij.plugin.ChannelSplitter
@@ -7,7 +8,8 @@ import ij.plugin.frame.RoiManager
 import inra.ijpb.binary.BinaryImages
 import loci.plugins.BF
 import loci.plugins.in.ImporterOptions
-import java.io.File;
+import org.apache.commons.compress.utils.FileNameUtils
+
 
 // INPUT UI
 //
@@ -39,20 +41,12 @@ for (def i = 0; i < listOfFiles.length; i++) {
     if (!listOfFiles[i].getName().contains("DS")) {
         IJ.log("Analyzing file: " + listOfFiles[i].getName());
         /** Define output directory per file */
-        def outputImageDir = new File(outputDir.getAbsolutePath() + File.separator + listOfFiles[i].getName().replaceAll(".lif", ""));
 
-        if (!outputImageDir.exists()) {
-            def results = false;
+        IJ.log("    -Creating output dir in " + outputDir.getAbsolutePath());
 
-            try {
-                outputImageDir.mkdir();
-                results = true;
-            } catch (SecurityException se) {
-            }
-        }
-        IJ.log("    -Creating output dir for image " + listOfFiles[i].getName().replaceAll(".lif", "") + " in " + outputDir.getAbsolutePath());
-        def imps = null;
-        if (listOfFiles[i].getName().contains(".lif")) {
+        if (FileNameUtils.getExtension(listOfFiles[i].getName()).contains("lif")) {
+
+
             /** Importer options for .lif file */
             def options = new ImporterOptions();
             options.setId(inputFilesDir.getAbsolutePath() + File.separator + listOfFiles[i].getName());
@@ -65,29 +59,29 @@ for (def i = 0; i < listOfFiles.length; i++) {
             options.setColorMode(ImporterOptions.COLOR_MODE_COMPOSITE);
             options.setCrop(false);
             options.setOpenAllSeries(true);
-            imps = BF.openImagePlus(options);
+            def imps = BF.openImagePlus(options);
             /** Define results table per image */
             def tableLif = new ResultsTable();
 
-            for (int j = 0; j < imps.length; j++) {
+            for (int j = 0; j <imps.length; j++) {
                 IJ.log("        -Analyzing serie: " + (j + 1).toString())
 
                 /** Declare each image to process within input directory */
                 def imp = imps[j];
                 def impTitleSerie = null;
                 if (imp.getTitle().contains("/")) {
-                    impTitleSerie = imp.getTitle().replaceAll("/", "");
+                    impTitleSerie = imp.getTitle().replaceAll("/", "_");
                 } else {
                     impTitleSerie = imp.getTitle();
                 }
                 /** Define results table per slice */
                 def tableSlice = new ResultsTable()
-                imps = imp;
+            
                 /** Get calibration from non-transformed image. */
-                def cal = imps.getCalibration();
+                def cal = imp.getCalibration();
 
                 /** Split channels */
-                def channels = ChannelSplitter.split(imps);
+                def channels = ChannelSplitter.split(imp);
                 /** Get channel Blue */
                 def chBlue = channels[0];
                 /** Get channel Red */
@@ -155,16 +149,33 @@ for (def i = 0; i < listOfFiles.length; i++) {
                     tableSlice.setValue("Nuclei Mean Fluorescence", s, meanColoc.toString())
                     tableSlice.setValue("Nuclei Max Fluorescence", s, maxColoc.toString())
                     tableSlice.setValue("Nuclei Min Fluorescence", s, minColoc.toString())
-                    tableSlice.setValue("Nuclei Sum Fluorescence", s, (meanColoc * roiBlueRed.getStatistics().area).toString())
-                    tableSlice.setValue("Nuclei Area", s, roiBlueRed.getStatistics().area)
+                    if (roiBlueRed == null) {
+                        tableSlice.setValue("Nuclei Sum Fluorescence", s, 0.toString())
+                    } else {
+                        tableSlice.setValue("Nuclei Sum Fluorescence", s, (meanColoc * roiBlueRed.getStatistics().area).toString())
+                    }
+                    if (roiBlueRed == null) {
+                        tableSlice.setValue("Nuclei Area", s, 0.toString())
+                    } else {
+                        tableSlice.setValue("Nuclei Area", s, roiBlueRed.getStatistics().area)
+                    }
                     tableSlice.setValue("Sum Red", s, sumRed)
                     tableSlice.setValue("Cyto Sum Fluorescence", s, (sumRed - sumColoc).toString())
                     /**Store table per image (per slice results) */
                     nucleiMean.add(meanColoc.toDouble())
                     nucleiMax.add(maxColoc.toDouble())
                     nucleiMin.add(minColoc.toDouble())
-                    nucleiSum.add((meanColoc * roiBlueRed.getStatistics().area).toDouble())
-                    nucleiArea.add(roiBlueRed.getStatistics().area)
+                    if (roiBlueRed == null) {
+                        nucleiSum.add(0.toDouble())
+                    } else {
+                        nucleiSum.add((meanColoc * roiBlueRed.getStatistics().area).toDouble())
+                    }
+                    if (roiBlueRed == null) {
+                        nucleiArea.add(0.toDouble())
+                    } else {
+                        nucleiArea.add(roiBlueRed.getStatistics().area)
+                    }
+
                     sumRedTotal.add(sumRed)
                     cytoMean.add((sumRed - sumColoc).toDouble())
 
@@ -176,9 +187,9 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 tableSlice.save(tablePath);
 
                 /** Iterate through table per image (.Lif) */
-                tableLif.setValue("Image Serie", j, imps.getTitle().replaceAll(".lif",""))
+                tableLif.setValue("Image Serie", j, imp.getTitle().replaceAll(".lif", ""))
                 tableLif.setValue("N Slices (Planes)", j, chBlue.stackSize.toString())
-                tableLif.setValue("Nuclei Mean Fluorescence", j,nucleiMean.stream()
+                tableLif.setValue("Nuclei Mean Fluorescence", j, nucleiMean.stream()
                         .mapToDouble(a -> a)
                         .average().getAsDouble().toString())
                 tableLif.setValue("Nuclei Max Fluorescence", j, nucleiMax.stream()
@@ -193,19 +204,16 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 tableLif.setValue("Nuclei Area", j, nucleiArea.stream()
                         .mapToDouble(a -> a)
                         .average().getAsDouble().toString())
-                tableLif.setValue("Sum Red",j, sumRed.stream()
+                tableLif.setValue("Sum Red", j, sumRedTotal.stream()
                         .mapToDouble(a -> a)
                         .average().getAsDouble().toString())
                 tableLif.setValue("Cyto Mean Fluorescence", j, cytoMean.stream()
                         .mapToDouble(a -> a)
                         .average().getAsDouble().toString())
-
-                def tablePathLif = new File(outputDir, listOfFiles[i].getName().replaceAll(".lif", "") + "_" + "table_perimage_results" + ".csv").toString();
-                IJ.log("Saving table per file: " + tablePathLif + " in " + outputDir.getAbsolutePath());
-                tableLif.save(tablePathLif);
-
             }
-
+            def tablePathLif = new File(outputDir, listOfFiles[i].getName().replaceAll(".lif", "") + "_" + "table_perimage_results" + ".csv").toString();
+            IJ.log("Saving table per file: " + tablePathLif + " in " + outputDir.getAbsolutePath());
+            tableLif.save(tablePathLif);
 
 
         } else {
@@ -213,7 +221,7 @@ for (def i = 0; i < listOfFiles.length; i++) {
             /** Create results table to store results per slice (section or plane) */
             def tableSlice = new ResultsTable()
             /** Create image for each file in the input directory */
-            imps = new ImagePlus(listOfFiles[i].getAbsolutePath())
+            def imps = new ImagePlus(listOfFiles[i].getAbsolutePath())
 
             /** Define all variables to store results per slice */
             def nucleiMean = new ArrayList<Double>();
@@ -272,7 +280,13 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 chRedSliceMeasure.setRoi(roiBlueRed);
                 /** Store statistics relative to intensity (mean,max,min,sum...) */
                 def meanColoc = chRedSliceMeasure.getStatistics().mean
-                def sumColoc = chRedSliceMeasure.getStatistics().mean * roiBlueRed.getStatistics().area;
+                def sumColoc = null
+                if (chRedSliceMeasure.getStatistics().mean == null || roiBlueRed == null) {
+                    sumColoc = 0;
+                } else {
+                    sumColoc = chRedSliceMeasure.getStatistics().mean * roiBlueRed.getStatistics().area;
+                }
+
                 def minColoc = chRedSliceMeasure.getStatistics().min
                 def maxColoc = chRedSliceMeasure.getStatistics().max
                 /** Measure total red intensity on red channel */
@@ -287,16 +301,33 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 tableSlice.setValue("Nuclei Mean Fluorescence", s, meanColoc.toString())
                 tableSlice.setValue("Nuclei Max Fluorescence", s, maxColoc.toString())
                 tableSlice.setValue("Nuclei Min Fluorescence", s, minColoc.toString())
-                tableSlice.setValue("Nuclei Sum Fluorescence", s, (meanColoc * roiBlueRed.getStatistics().area).toString())
-                tableSlice.setValue("Nuclei Area", s, roiBlueRed.getStatistics().area)
+
+                if (roiBlueRed == null) {
+                    tableSlice.setValue("Nuclei Sum Fluorescence", s, 0.toString())
+                } else {
+                    tableSlice.setValue("Nuclei Sum Fluorescence", s, (meanColoc * roiBlueRed.getStatistics().area).toString())
+                }
+                if (roiBlueRed == null) {
+                    tableSlice.setValue("Nuclei Area", s, 0.toString())
+                } else {
+                    tableSlice.setValue("Nuclei Area", s, roiBlueRed.getStatistics().area)
+                }
                 tableSlice.setValue("Sum Red", s, sumRed);
                 tableSlice.setValue("Cyto Sum Fluorescence", s, (sumRed - sumColoc).toString())
                 /**Store measurements to fit table per image */
                 nucleiMean.add(meanColoc.toDouble())
                 nucleiMax.add(maxColoc.toDouble())
                 nucleiMin.add(minColoc.toDouble())
-                nucleiSum.add((meanColoc * roiBlueRed.getStatistics().area).toDouble())
-                nucleiArea.add(roiBlueRed.getStatistics().area)
+                if (roiBlueRed == null) {
+                    nucleiSum.add(0.toDouble())
+                } else {
+                    nucleiSum.add((meanColoc * roiBlueRed.getStatistics().area).toDouble())
+                }
+                if (roiBlueRed == null) {
+                    nucleiArea.add(0.toDouble())
+                } else {
+                    nucleiArea.add(roiBlueRed.getStatistics().area)
+                }
                 sumRedTotal.add(sumRed)
                 cytoMean.add((sumRed - sumColoc).toDouble())
 
