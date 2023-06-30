@@ -133,6 +133,12 @@ for (def i = 0; i < listOfFiles.length; i++) {
                     chRedSliceMeasure.setRoi(roiBlueRed);
                     /** Store statistics relative to coloc intensity (mean and sum...) */
                     def meanColoc = chRedSliceMeasure.getStatistics().mean
+                      def sumColoc = null
+                	if (chRedSliceMeasure.getStatistics().mean == null || roiBlueRed == null) {
+                    	sumColoc = 0;
+               		 } else {
+                   	 sumColoc = chRedSliceMeasure.getStatistics().mean * roiBlueRed.getStatistics().area;
+               			 }
                     def sumColoc = chRedSliceMeasure.getStatistics().mean * roiBlueRed.getStatistics().area;
                     def minColoc = chRedSliceMeasure.getStatistics().min
                     def maxColoc = chRedSliceMeasure.getStatistics().max
