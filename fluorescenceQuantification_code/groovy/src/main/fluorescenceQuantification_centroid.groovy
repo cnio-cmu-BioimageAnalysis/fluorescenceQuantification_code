@@ -77,7 +77,6 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 } else {
                     impTitleSerie = imp.getTitle();
                 }
-                if((impTitleSerie.contains("350") ||impTitleSerie.contains("350")) && (impTitleSerie.contains("Series023") ||impTitleSerie.contains("Series001"))){
                 /** Define results table per slice */
                 def tableSlice = new ResultsTable()
 
@@ -257,7 +256,7 @@ for (def i = 0; i < listOfFiles.length; i++) {
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
 
-            }
+            
             def tablePathLif = new File(outputDir, listOfFiles[i].getName().replaceAll(".lif", "") + "_" + "table_perimage_results" + ".csv").toString();
             IJ.log("Saving table per file: " + tablePathLif + " in " + outputDir.getAbsolutePath());
             tableLif.save(tablePathLif);
