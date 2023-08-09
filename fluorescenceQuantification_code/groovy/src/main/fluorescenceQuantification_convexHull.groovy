@@ -1,3 +1,4 @@
+                    
 import ij.IJ
 import ij.ImagePlus
 import ij.gui.PolygonRoi
@@ -32,6 +33,7 @@ IJ.log("-Parameters selected: ")
 IJ.log("    -inputFileDir: " + inputFilesDir)
 IJ.log("    -outputDir: " + outputDir)
 IJ.log("                                                           ");
+def rm = new RoiManager();
 /** Get files (images) from input directory */
 def listOfFiles = inputFilesDir.listFiles();
 /** Define table to store results */
@@ -40,7 +42,6 @@ def analyzeLif = null
 if (listOfFiles[0].getName().contains(".lif")) {
     analyzeLif = true
 }
-
 for (def i = 0; i < listOfFiles.length; i++) {
 
     if (!listOfFiles[i].getName().contains("DS")) {
@@ -101,9 +102,7 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 def chNuclei = channels[nucleiChannel.intValue()];
                 /** Get channel Red */
                 def chCyto = channels[cytoChannel.intValue()];
-
-
-
+                
                 for (def s = 1; s <= chNuclei.stackSize; s++) {
                     /** Analysis of nuclei slices */
                     def ipNucleiSlice = chNuclei.getImageStack().getProcessor(s);
@@ -125,6 +124,8 @@ for (def i = 0; i < listOfFiles.length; i++) {
                     //chNucleiSlice.show()
                     /** Get contour as ROI */
                     def roiNucleiSlice = chNucleiSlice.getRoi();
+                    //rm.addRoi(roiNucleiSlice);
+
                     /** Analysis of cyto slices */
                     def ipCytoSlice = chCyto.getImageStack().getProcessor(s);
                     def chCytoSlice = new ImagePlus("", ipCytoSlice);
@@ -133,9 +134,9 @@ for (def i = 0; i < listOfFiles.length; i++) {
                     IJ.run(chCytoSlice, "Auto Threshold", "method=Otsu ignore_black white");
                     /** Apply median filter to remove background areas below
                      5 pixels */
-                    IJ.run(chCytoSlice, "Median...", "radius=5")
-                     /** Apply area closing in binary images */
-  
+                    IJ.run(chCytoSlice, "Median...", "radius=3")
+                    /** Apply area closing in binary images */
+   
                     chCytoSlice = new ImagePlus("", strel.closing(chCytoSlice.getProcessor()));
                     /** Create contour selection on cyto areas */
                     IJ.run(chCytoSlice, "Create Selection", "");
@@ -153,7 +154,6 @@ for (def i = 0; i < listOfFiles.length; i++) {
                         sumNuclei = 0.0
                     } else {
                         roiNuclei = roiNucleiSlice;
-                     
                         /** Measure nuclei intensity on cyto channel */
                         chCytoSliceMeasure.setRoi(roiNuclei);
                         /** Store statistics relative to intensity (mean,max,min,sum...) */
@@ -172,7 +172,7 @@ for (def i = 0; i < listOfFiles.length; i++) {
                     } else {
                         def roiCytoAND = new ShapeRoi(roiNuclei).and(new ShapeRoi(roiCytoSlice));
                         roiCyto = roiCytoAND.xor(new ShapeRoi(roiCytoSlice)).shapeToRoi();
-                     
+                        //rm.addRoi(roiCyto)
                         def areaCyto = null;
                         if(roiCyto == null){
                         	areaCyto = 0.0
@@ -201,6 +201,7 @@ for (def i = 0; i < listOfFiles.length; i++) {
                         chCytoSliceMeasure.setRoi(roiRed);
                         /** Store statistics sum intensity */
                         sumRed = chCytoSliceMeasure.getStatistics().mean * roiRed.getStatistics().area;
+                        meanRed = chCytoSliceMeasure.getStatistics().mean;
                     }
 
                     /** NUCLEI ANALYSIS CONTAINED ON RED AREAS (measure nuclei contained on red areas) */
@@ -223,14 +224,13 @@ for (def i = 0; i < listOfFiles.length; i++) {
                         sumNucleiSplit.add(0.0.toDouble());
                     }
 					sumRed = sumNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble() + sumCyto;
-					meanRed = sumNucleiSplit.stream().mapToDouble(a -> a).average().toDouble() + meanCyto;
                     /**Create results table per image (per slice results) */
                     tableSlice.incrementCounter();
                     tableSlice.setValue("Plane (Slice)", s, s.toString())
                     tableSlice.setValue("Cyto Sum Intensity", s, sumCyto.toString())
-                     tableSlice.setValue("Cyto Mean Intensity", s, meanCyto.toString())
+                    tableSlice.setValue("Cyto Mean Intensity", s, meanCyto.toString())
                     tableSlice.setValue("Positive Nuclei Sum Intensity", s, sumNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble())
-                     tableSlice.setValue("Positive Nuclei Mean Intensity", s, meanNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble())
+                    tableSlice.setValue("Positive Nuclei Mean Intensity", s, meanNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble())
                     tableSlice.setValue("Total Sum Intensity", s, sumRed.toString())
                      tableSlice.setValue("Total Mean Intensity", s, meanRed.toString())
                     /**Store measurements to fit table per image */
@@ -238,62 +238,66 @@ for (def i = 0; i < listOfFiles.length; i++) {
                     cytoSum.add(sumCyto.toDouble())
                     cytoMean.add(meanCyto.toDouble())
                     redSum.add(sumRed.toDouble())
+                    redMean.(meanRed.toDouble())
                     cytoInverseSum.add(sumNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble())
-                    nucleiMean.add(meanNucleiSplit.stream().mapToDouble(a -> a).average().toDouble())
-					 
-
+                    nucleiMean.add(meanNucleiSplit.stream().mapToDouble(a -> a).average().orElse(0.0))
+                    
+				  //rm.runCommand("Save",
+                       //outputDir.getAbsolutePath() + File.separator +imp.getTitle().replaceAll(".lif", "")+"slice_"+(s+1) + "_RoiSet.zip")
+					
                 }
-                
-                tableSlice.setValue("Cyto Sum Intensity", chNuclei.stackSize+1, cytoSum.stream()
+                //rm.reset()
+                  tableSlice.setValue("Cyto Sum Intensity", chNuclei.stackSize+1, cytoSum.stream()
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
                  tableSlice.setValue("Cyto Mean Intensity", chNuclei.stackSize+1, cytoMean.stream()
                         .mapToDouble(a -> a)
-                        .average().toDouble().toString())
+                        .average().orElse(0.0).toString())
                 tableSlice.setValue("Positive Nuclei Sum Intensity", chNuclei.stackSize+1, cytoInverseSum.stream()
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
                         tableSlice.setValue("Positive Nuclei Mean Intensity", chNuclei.stackSize+1, nucleiMean.stream()
                         .mapToDouble(a -> a)
-                        .average().toDouble().toString())
+                        .average().orElse(0.0).toString())
                 tableSlice.setValue("Total Sum Intensity", chNuclei.stackSize+1, redSum.stream()
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
                tableSlice.setValue("Total Mean Intensity", chNuclei.stackSize+1, redMean.stream()
                         .mapToDouble(a -> a)
-                        .average().toDouble().toString())
+                        .average().orElse(0.0).toString())
                 /**Save table per slice (plane) */
                 def tablePath = new File(outputDir, impTitleSerie.replaceAll(".tif", "") + "_" + "table_slice_results" + ".csv").toString();
                 IJ.log("Saving table per serie: " + tablePath + " in " + outputDir.getAbsolutePath());
                 tableSlice.save(tablePath);
 				
                 /** Iterate through table per image (.Lif) */
-                tableLif.setValue("Image Serie", j, imp.getTitle().replaceAll(".lif", ""))
+               tableLif.setValue("Image Serie", j, imp.getTitle().replaceAll(".lif", ""))
                 tableLif.setValue("N Slices (Planes)", j, chNuclei.stackSize.toString())
                 tableLif.setValue("Cyto Sum Intensity", j, cytoSum.stream()
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
                  tableLif.setValue("Cyto Mean Intensity", j, cytoMean.stream()
                         .mapToDouble(a -> a)
-                        .average().toDouble().toString())
+                        .average().orElse(0.0).toString())
                 tableLif.setValue("Positive Nuclei Sum Intensity", j, cytoInverseSum.stream()
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
                tableLif.setValue("Positive Nuclei Mean Intensity", j, nucleiMean.stream()
                         .mapToDouble(a -> a)
-                        .average().toDouble().toString())
+                        .average().orElse(0.0).toString())
                 tableLif.setValue("Total Sum Intensity", j, redSum.stream()
                         .mapToDouble(a -> a)
                         .sum().toDouble().toString())
                tableLif.setValue("Total Mean Intensity", j, redMean.stream()
                         .mapToDouble(a -> a)
-                        .average().toDouble().toString())
+                        .average().orElse(0.0).toString())
 
-            //}
+
+            
             def tablePathLif = new File(outputDir, listOfFiles[i].getName().replaceAll(".lif", "") + "_" + "table_perimage_results" + ".csv").toString();
             IJ.log("Saving table per file: " + tablePathLif + " in " + outputDir.getAbsolutePath());
             tableLif.save(tablePathLif);
-            }
+           }
 
         } else {
 
@@ -326,7 +330,7 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 def chNucleiSlice = new ImagePlus("", ipNucleiSlice);
                 def chNucleiSliceMeasure = chNucleiSlice.duplicate();
                 /** Segment Nuclei Areas */
-                IJ.run(chNucleiSlice, "Auto Threshold", "method=Otsu ignore_black white");
+                IJ.run(chNucleiSlice, "Auto Threshold", "method=RenyiEntropy ignore_black white");
                 /** Apply median filter to remove background areas below
                  5 pixels */
                 IJ.run(chNucleiSlice, "Median...", "radius=3")
@@ -351,8 +355,6 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 /** Apply median filter to remove background areas below
                  5 pixels */
                 IJ.run(chCytoSlice, "Median...", "radius=5")
-                  /** Apply area closing in binary images */
-                chCytoSlice = new ImagePlus("", strel.closing(chCytoSlice.getProcessor()));
                 /** Create contour selection on cyto areas */
                 IJ.run(chCytoSlice, "Create Selection", "");
                 /** Get contour as ROI */
@@ -411,15 +413,17 @@ for (def i = 0; i < listOfFiles.length; i++) {
 
                 /** NUCLEI ANALYSIS CONTAINED ON RED AREAS (measure nuclei contained on red areas) */
                 def sumNucleiSplit = new ArrayList<Double>();
-                def meanNucleiSplit = new ArrayList<Double>();
                 if(roiNuclei != null) {
                         def roisNucleiSplit = new ShapeRoi(roiNuclei).getRois();
                         for (def n = 0.0.intValue(); n < roisNucleiSplit.length; n++) {
-                                    if (roiCytoSlice.containsPoint(roisNucleiSplit[n].getContourCentroid()[0], roisNucleiSplit[n].getContourCentroid()[1])) {
+                            for (def x = 0.0.intValue(); x <roisNucleiSplit[n].getConvexHull().xpoints.length; x++) {
+                                for (def y = 0.0.intValue(); y <roisNucleiSplit[n].getConvexHull().ypoints.length; y++) {
+                                    if (roiCytoSlice.contains(roisNucleiSplit[n].getConvexHull().xpoints[x], roisNucleiSplit[n].getConvexHull()yxpoints[y])) {
                                         chCytoSliceMeasure.setRoi(roisNucleiSplit[n]);
                                         sumNucleiSplit.add(chCytoSliceMeasure.getStatistics().mean * roisNucleiSplit[n].getStatistics().area);
-                                         meanNucleiSplit.add(chCytoSliceMeasure.getStatistics().mean);
                                     }
+                                }
+                            }
                         }
                 }else{
                     sumNucleiSplit.add(0.0.toDouble());
@@ -429,12 +433,8 @@ for (def i = 0; i < listOfFiles.length; i++) {
                 tableSlice.setValue("Plane (Slice)", s, s.toString())
                 tableSlice.setValue("Nuclei Sum Intensity", s, sumNuclei.toString())
                 tableSlice.setValue("Cyto Sum Intensity", s, sumCyto.toString())
-                tableSlice.setValue("Cyto Mean Intensity", s, meanCyto.toString())
                 tableSlice.setValue("Inverse Cyto Sum Intensity", s, sumNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble())
-                tableSlice.setValue("Positive Nuclei Mean Intensity", s, meanNucleiSplit.stream().mapToDouble(a -> a).sum().toDouble())
-                tableSlice.setValue("Total Sum Intensity", s, sumRed.toString())
-                 tableSlice.setValue("Total Mean Intensity", s, sumRed.toString())
-      
+                tableSlice.setValue("Red Sum Intensity", s, sumRed.toString())
                 /**Store measurements to fit table per image */
                 nucleiSum.add(sumNuclei.toDouble())
                 cytoSum.add(sumCyto.toDouble())
@@ -455,16 +455,16 @@ for (def i = 0; i < listOfFiles.length; i++) {
             tableTotal.setValue("N Slices (Planes)", i, chNuclei.stackSize.toString())
             tableTotal.setValue("Nuclei Sum Intensity Average", i, nucleiSum.stream()
                     .mapToDouble(a -> a)
-                    .average().getAsDouble().toString())
+                    .average().orElse(0.0).toString())
             tableTotal.setValue("Cyto Sum Intensity Average", i, cytoSum.stream()
                     .mapToDouble(a -> a)
-                    .average().getAsDouble().toString())
+                    .average().orElse(0.0).toString())
             tableTotal.setValue("Cyto Inverse Sum Intensity Average", i, cytoInverseSum.stream()
                     .mapToDouble(a -> a)
-                    .average().getAsDouble().toString())
+                    .average().orElse(0.0).toString())
             tableTotal.setValue("Red Sum Intensity Average", i, redSum.stream()
                     .mapToDouble(a -> a)
-                    .average().getAsDouble().toString())
+                    .average().orElse(0.0).toString())
 
 
         }
